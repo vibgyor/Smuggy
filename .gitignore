@@ -1,0 +1,6 @@
+*.exe
+*.json
+*.bat
+*.txt
+
+/deploy
