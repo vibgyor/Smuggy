@@ -1,4 +1,4 @@
-hi, this is a discord bot written in go for my friend who's planning on hosting some minecraft events he's calling "cubing". soon, this bot will have a text adventure game you can play on discord, using points obtained during the minecraft event.
+hi, this is a discord bot written in go for my friend who's planning on hosting some minecraft events he's calling "cubing". soon, this bot will have a text adventure game you can play on discord, using points obtained during the event.
 
 special thanks to bwmarrin for discordgo and Strum355, whose open source bot, 2Bot, i was able to learn from cause i have no idea what the fuck i'm doing.
 
