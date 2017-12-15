@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"sort"
+//	"sort"
 	"strconv"
 	"strings"
 	
@@ -109,16 +109,16 @@ func commandAddUser(s *discordgo.Session, m *discordgo.Message, msgList []string
 	c, _ := s.Channel(m.ChannelID)
 	member, _ := s.State.Member(c.GuildID, userID)
 	
-	if _, ok := userList.Member[userID]; !ok {
-		userList.Member[userID] = &User{}
+	if _, ok := userList.Members[userID]; !ok {
+		userList.Members[userID] = &User{}
 		
-		userList.Member[userID].Roles = make(map[string][]GuildRole)
+		userList.Members[userID].Roles = make(map[string][]GuildRole)
 		g, _ := s.State.Guild(c.GuildID)
 		roles := g.Roles
 		for _, role := range roles {
 			for _, roleID := range member.Roles {
 				if role.ID == roleID {
-					userList.Member[userID].Roles[role.ID] = append(userList.Member[userID].Roles[role.ID], GuildRole{
+					userList.Members[userID].Roles[role.ID] = append(userList.Members[userID].Roles[role.ID], GuildRole{
 					ID: role.ID,
 					Name: role.Name,
 					})
@@ -126,13 +126,23 @@ func commandAddUser(s *discordgo.Session, m *discordgo.Message, msgList []string
 			}
 		}
 		
-		userList.Member[userID] = &User{
+		stats := &UserStats{
+			Wins: 0,
+			Participations: 0,
+			Kills: 0,
+			PlayerDeaths: 0,
+			TotalDeaths: 0,
+			FirstDeaths: 0,
+		}
+		
+		userList.Members[userID] = &User{
 			ID: userID,
 			Username: member.User.Username,
 			Nick: member.Nick,
-			Roles: userList.Member[userID].Roles,
+			Roles: userList.Members[userID].Roles,
 			Points: 0,
 			Dead: false,
+			Stats: *stats,
 		}
 		
 		s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Successfully added <@%s> to user list", userID))
@@ -165,8 +175,8 @@ func commandDeleteUser(s *discordgo.Session, m *discordgo.Message, msgList []str
 		return
 	}
 	
-	if _, ok := userList.Member[userID]; ok {
-		delete(userList.Member, userID)
+	if _, ok := userList.Members[userID]; ok {
+		delete(userList.Members, userID)
 		
 		s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Successfully deleted <@%s> from user list", userID))
 	} else {
@@ -206,16 +216,9 @@ func commandAddPoints(s *discordgo.Session, m *discordgo.Message, msgList []stri
 		return
 	}
 	
-	if _, ok := userList.Member[userID]; ok {
-		newPoints := userList.Member[userID].Points + pointsToAdd
-		userList.Member[userID] = &User{
-			ID: userList.Member[userID].ID,
-			Username: userList.Member[userID].Username,
-			Nick: userList.Member[userID].Nick,
-			Roles: userList.Member[userID].Roles,
-			Points: newPoints,
-			Dead: userList.Member[userID].Dead,
-		}
+	if _, ok := userList.Members[userID]; ok {
+		newPoints := userList.Members[userID].Points + pointsToAdd
+		userList.Members[userID].Points = newPoints
 		
 		s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Added %d points to <@%s>", pointsToAdd, userID))
 	} else {
@@ -255,21 +258,14 @@ func commandRemovePoints(s *discordgo.Session, m *discordgo.Message, msgList []s
 		return
 	}
 	
-	if _, ok := userList.Member[userID]; ok {
-		newPoints := userList.Member[userID].Points - pointsToRemove
+	if _, ok := userList.Members[userID]; ok {
+		newPoints := userList.Members[userID].Points - pointsToRemove
 		
 		if newPoints < 0 {
 			newPoints = 0
 		}
 		
-		userList.Member[userID] = &User{
-			ID: userList.Member[userID].ID,
-			Username: userList.Member[userID].Username,
-			Nick: userList.Member[userID].Nick,
-			Roles: userList.Member[userID].Roles,
-			Points: newPoints,
-			Dead: userList.Member[userID].Dead,
-		}
+		userList.Members[userID].Points = newPoints
 		
 		s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Removed %d points from <@%s>", pointsToRemove, userID))
 	} else {
@@ -300,8 +296,8 @@ func commandGetPoints(s *discordgo.Session, m *discordgo.Message, msgList []stri
 		return
 	}
 	
-	if _, ok := userList.Member[userID]; ok {
-		totalPoints := userList.Member[userID].Points
+	if _, ok := userList.Members[userID]; ok {
+		totalPoints := userList.Members[userID].Points
 		
 		s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("Total points for <@%s>: %d", userID, totalPoints))
 	} else {
@@ -318,21 +314,18 @@ func commandLeaderboard(s *discordgo.Session, m *discordgo.Message, msgList []st
 		return
 	}
 	
-	var leaderboard []int
-	
-	for i := range userList.Member {
-		leaderboard = append(leaderboard, userList.Member[i].Points)
-	}
-	
-	sort.Sort(sort.Reverse(sort.IntSlice(leaderboard)))
-	
-	for i := range leaderboard {
-		for j := range userList.Member {
-			if leaderboard[i] == userList.Member[j].Points {
-				spot := i+1
-				s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("%d. <@%s>: %d points", spot, userList.Member[j].ID, userList.Member[j].Points))
-			}
-		}
+	// TODO: figure out how to sort this shit
+	var spot int
+	for j := range userList.Members {
+		spot++
+		s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("%d. <@%s> Wins: %d / Participations: %d / Kills: %d / Player-caused deaths: %d / Total deaths: %d / First deaths: %d",
+														spot, userList.Members[j].ID,
+														userList.Members[j].Stats.Wins,
+														userList.Members[j].Stats.Participations,
+														userList.Members[j].Stats.Kills,
+														userList.Members[j].Stats.PlayerDeaths,
+														userList.Members[j].Stats.TotalDeaths,
+														userList.Members[j].Stats.FirstDeaths))
 	}
 	
 	return 

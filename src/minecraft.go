@@ -10,6 +10,7 @@ import (
 
 var (
 	starvedToDeath = false // only true if second place player starves to death
+	participatingPlayers []string
 )
 
 func startPVP(s *discordgo.Session, m *discordgo.Message) {
@@ -18,21 +19,21 @@ func startPVP(s *discordgo.Session, m *discordgo.Message) {
 		config.PVP = true
 		s.ChannelMessageSend(m.ChannelID, ":warning: **PVP is now on!** :warning:")
 		
-		// award all players 5 participation points
-		for i := range userList.Member {
-			newPoints := userList.Member[i].Points + 5
-			userList.Member[i] = &User{
-				ID: userList.Member[i].ID,
-				Username: userList.Member[i].Username,
-				Nick: userList.Member[i].Nick,
-				Roles: userList.Member[i].Roles,
-				Points: newPoints,
-				Dead: userList.Member[i].Dead,
+		for i := range participatingPlayers {
+			for j := range userList.Members {
+				if participatingPlayers[i] == userList.Members[j].ID {
+					newPoints := userList.Members[j].Points + 5
+					
+					userList.Members[j].Points = newPoints
+					userList.Members[j].Dead = false
+					userList.Members[j].Stats.Participations++
+				}
 			}
 		}
+		
+		saveConfig()
+		saveUserList()
 	}
-	
-	saveConfig()
 }
 
 func parseMCBot(s *discordgo.Session, m *discordgo.Message) {
@@ -46,6 +47,7 @@ func parseMCBot(s *discordgo.Session, m *discordgo.Message) {
 	}
 	
 	// TODO: prevent players from being able to exploit the bot from Minecraft chat
+	checkJoinedServer(m)
 	checkPlayerDied(m)
 	checkKilledPlayer(m)
 	checkLeftServer(m)
@@ -67,33 +69,33 @@ func checkPlayerDied(m *discordgo.Message) {
 			userID = getUserID(nick)
 		}
 		
-		if _, ok := userList.Member[userID]; ok {
-			if userList.Member[userID].Dead != true {
+		if _, ok := userList.Members[userID]; ok {
+			if userList.Members[userID].Dead != true {
 				var newPoints int
 				
 				deadUsers := getDeadUsers()
-				totalUsers := len(userList.Member)
+				totalUsers := len(userList.Members)
 				secondPlace := totalUsers - 2
 				
 				if deadUsers == 0 {
 					newPoints = 0
+					userList.Members[userID].Stats.FirstDeaths++
 				} else if deadUsers == secondPlace {
-					newPoints = userList.Member[userID].Points + 10
+					newPoints = userList.Members[userID].Points + 10
 					
 					if strings.Contains(msg, "starved to death") {
 						starvedToDeath = true
 					}
 				} else {
-					newPoints = userList.Member[userID].Points
+					newPoints = userList.Members[userID].Points
 				}
 				
-				userList.Member[userID] = &User{
-					ID: userList.Member[userID].ID,
-					Username: userList.Member[userID].Username,
-					Nick: userList.Member[userID].Nick,
-					Roles: userList.Member[userID].Roles,
-					Points: newPoints,
-					Dead: true,
+				userList.Members[userID].Points = newPoints
+				userList.Members[userID].Dead = true
+				userList.Members[userID].Stats.TotalDeaths++
+				
+				if strings.Contains(msg, "was slain by") {
+					userList.Members[userID].Stats.PlayerDeaths++
 				}
 				
 				saveUserList()
@@ -116,31 +118,23 @@ func checkKilledPlayer(m *discordgo.Message) {
 			userID = getUserID(nick)
 		}
 		
-		if _, ok := userList.Member[userID]; ok {
-			if userList.Member[userID].Dead != true {
-				newPoints := userList.Member[userID].Points + 2
+		if _, ok := userList.Members[userID]; ok {
+			if userList.Members[userID].Dead != true {
+				newPoints := userList.Members[userID].Points + 2
 				
 				deadUsers := getDeadUsers()
-				totalUsers := len(userList.Member)
+				totalUsers := len(userList.Members)
 				firstPlace := totalUsers - 1
 				
 				if deadUsers == firstPlace {
-					if starvedToDeath == true {
-						// first place player gets no points
-						newPoints = userList.Member[userID].Points
-					} else {
-						newPoints = userList.Member[userID].Points + 15
+					userList.Members[userID].Stats.Wins++
+					if starvedToDeath != true {
+						newPoints = userList.Members[userID].Points + 15
 					}
 				}
 			
-				userList.Member[userID] = &User{
-					ID: userList.Member[userID].ID,
-					Username: userList.Member[userID].Username,
-					Nick: userList.Member[userID].Nick,
-					Roles: userList.Member[userID].Roles,
-					Points: newPoints,
-					Dead: userList.Member[userID].Dead,
-				}
+				userList.Members[userID].Points = newPoints
+				userList.Members[userID].Stats.Kills++
 				
 				saveUserList()
 			}
@@ -162,19 +156,12 @@ func checkLeftServer(m *discordgo.Message) {
 			userID = getUserID(nick)
 		}
 		
-		if _, ok := userList.Member[userID]; ok {
-			if userList.Member[userID].Dead != true {
+		if _, ok := userList.Members[userID]; ok {
+			if userList.Members[userID].Dead != true {
 				if config.EventStarted == true {
 					if config.PVP == true{
 						// punish the player for leaving in the middle of the event before dying
-						userList.Member[userID] = &User{
-							ID: userList.Member[userID].ID,
-							Username: userList.Member[userID].Username,
-							Nick: userList.Member[userID].Nick,
-							Roles: userList.Member[userID].Roles,
-							Points: userList.Member[userID].Points,
-							Dead: true,
-						}
+						userList.Members[userID].Dead = true
 						
 						saveUserList()
 					}
@@ -184,11 +171,29 @@ func checkLeftServer(m *discordgo.Message) {
 	}
 }
 
+func checkJoinedServer(m *discordgo.Message) {
+	msg := strings.ToLower(m.Content)
+	
+	if strings.Contains(msg, "just joined the server!") {
+		msgList := strings.Fields(m.Content)
+		nick := msgList[0]
+		nick = strings.Trim(nick, "*")
+		
+		var userID string
+		
+		if nick != "" {
+			userID = getUserID(nick)
+		}
+		
+		participatingPlayers = append(participatingPlayers, userID)
+	}
+}
+
 func getDeadUsers() int {
 	var deadUsers int
 	
-	for i := range userList.Member {
-		if userList.Member[i].Dead == true {
+	for i := range userList.Members {
+		if userList.Members[i].Dead == true {
 			deadUsers++
 		}
 	}

@@ -22,7 +22,7 @@ type Config struct {
 }
 
 type UserList struct {
-	Member map[string]*User
+	Members map[string]*User
 }
 
 type User struct {
@@ -32,9 +32,19 @@ type User struct {
 	Roles map[string][]GuildRole `json:"roles"`
 	Points int `json:"points"`
 	Dead bool `json:"dead"`
+	Stats UserStats `json:"stats"`
 }
 
 type GuildRole struct {
 	ID string `json:"id"`
 	Name string `json:"name"`
+}
+
+type UserStats struct {
+	Wins int `json:"wins"`
+	Participations int `json:"participations"`
+	Kills int `json:"Kills"`
+	PlayerDeaths int `json:"player_deaths"`
+	TotalDeaths int `json:"total_deaths"`
+	FirstDeaths int `json:"first_deaths"`
 }

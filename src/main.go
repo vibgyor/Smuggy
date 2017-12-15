@@ -57,7 +57,7 @@ func saveConfig() {
 }
 
 func loadUserList() error {
-	userList.Member = make(map[string]*User)
+	userList.Members = make(map[string]*User)
 	err := loadJSON("userlist.json", userList)
 	if err != nil {
 		fmt.Println("Error loading user list: ", err)

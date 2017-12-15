@@ -32,14 +32,14 @@ func checkRolesInGuild(s *discordgo.Session, m *discordgo.Message, roleName stri
 
 func getUserID(name string) string {
 	var userID string
-	for i := range userList.Member {
-		if userList.Member[i].Nick == "" {
-			if name == userList.Member[i].Username {
-				userID = userList.Member[i].ID
+	for i := range userList.Members {
+		if userList.Members[i].Nick == "" {
+			if name == userList.Members[i].Username {
+				userID = userList.Members[i].ID
 			}
 		} else {
-			if name == userList.Member[i].Nick {
-				userID = userList.Member[i].ID
+			if name == userList.Members[i].Nick {
+				userID = userList.Members[i].ID
 			}
 		}
 	}
