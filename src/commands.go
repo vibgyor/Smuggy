@@ -309,24 +309,37 @@ func commandGetPoints(s *discordgo.Session, m *discordgo.Message, msgList []stri
 }
 
 func commandLeaderboard(s *discordgo.Session, m *discordgo.Message, msgList []string) {
+	var userID string
+	
 	if m.ChannelID != config.LeaderboardChannel {
 		s.ChannelMessageSend(m.ChannelID, "I can only display the leaderboard in your leaderboards channel. Try !leaderboard again there.")
 		return
 	}
 	
-	// TODO: figure out how to sort this shit
-	var spot int
-	for j := range userList.Members {
-		spot++
-		s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("%d. <@%s> Wins: %d / Participations: %d / Kills: %d / Player-caused deaths: %d / Total deaths: %d / First deaths: %d",
-														spot, userList.Members[j].ID,
-														userList.Members[j].Stats.Wins,
-														userList.Members[j].Stats.Participations,
-														userList.Members[j].Stats.Kills,
-														userList.Members[j].Stats.PlayerDeaths,
-														userList.Members[j].Stats.TotalDeaths,
-														userList.Members[j].Stats.FirstDeaths))
+	if len(msgList) > 1 {
+		userID = regexUserID(msgList)
+	} else {
+		userID = m.Author.ID
 	}
+	
+	if userID == s.State.User.ID {
+		s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("I have no stats to display"))
+		return
+	}
+	
+	if userID == "" {
+		s.ChannelMessageSend(m.ChannelID, ":no_entry: User does not exist")
+		return
+	}
+	
+	s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("<@%s> Wins: %d / Participations: %d / Kills: %d / Player-caused deaths: %d / Total deaths: %d / First deaths: %d",
+													userList.Members[userID].ID,
+													userList.Members[userID].Stats.Wins,
+													userList.Members[userID].Stats.Participations,
+													userList.Members[userID].Stats.Kills,
+													userList.Members[userID].Stats.PlayerDeaths,
+													userList.Members[userID].Stats.TotalDeaths,
+													userList.Members[userID].Stats.FirstDeaths))
 	
 	return 
 }
